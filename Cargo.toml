@@ -1,0 +1,20 @@
+[package]
+name = "rus"
+version = "0.0.1"
+edition = "2021"
+authors = ["Matous Dzivjak"]
+description = "Code search."
+readme = "README.md"
+repository = "https://github.com/matoous/puffin/"
+license = "Apache-2.0"
+license-file = "LICENSE"
+keywords = ["code-search", "search"]
+
+[dependencies]
+ignore = "0.4.20"
+prost = "0.12.1"
+regex = "1.9.6"
+sstable = "0.11.1"
+
+[build-dependencies]
+prost-build = "0.12.1"
