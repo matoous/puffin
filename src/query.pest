@@ -1,0 +1,22 @@
+query      =  { (query_term)+ }
+query_term = _{ (not | file | lang | query_text) }
+not        = ${ "NOT " ~ query_term }
+file       =  { "file:" ~ query_text }
+lang       =  { "lang:" ~ query_text }
+query_text = _{ (exact | regex | term) }
+term       = @{ (!WHITESPACE ~ ANY)+ }
+regex      = ${ "/" ~ re_inner ~ "/" }
+re_inner   = @{ re_char* }
+re_char    =  {
+    !("/" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+exact      = ${ "\"" ~ inner ~ "\"" }
+inner      = @{ char* }
+char       =  {
+    !("\"" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+WHITESPACE = _{ " " }

@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::{fs, io::Read};
 
 mod ngram;
+mod query;
 
 pub mod search {
     include!(concat!(env!("OUT_DIR"), "/search.rs"));
@@ -14,12 +15,12 @@ pub mod search {
 const MAX_SIZE: usize = 2 << 20;
 
 fn main() {
+    let query = "RUNE SIZE";
     let dir_path = "./";
 
     let mut index = Index::new();
     index.index(dir_path);
 
-    let query = "RUNE";
     let result = index.search(query.into());
 
     for f in result {
