@@ -1,0 +1,35 @@
+query = _{ SOI ~ expr ~ EOI }
+expr  =  { atom ~ (bin_op ~ atom)* }
+
+primary = _{ "(" ~ expr ~ ")" | file | lang | query_text }
+atom    = _{ not? ~ primary }
+
+bin_op = _{ or | and }
+or     =  { "OR" }
+and    =  { "AND" }
+not    =  { "NOT" }
+
+file = { "file:" ~ query_text }
+lang = { "lang:" ~ query_text }
+
+query_text = _{ exact | regex | term }
+
+regex    = ${ "/" ~ re_inner ~ "/" }
+re_inner = @{ re_char* }
+re_char  = _{
+    !("/" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+exact = ${ "\"" ~ inner ~ "\"" }
+inner = @{ char* }
+char  = _{
+    !("\"" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+term = @{ ASCII_ALPHANUMERIC+ }
+
+WHITESPACE = _{ " " }

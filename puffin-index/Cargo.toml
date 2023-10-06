@@ -1,0 +1,25 @@
+[package]
+name = "puffin-index"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+categories.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ignore = "0.4.20"
+lazy_static = "1.4.0"
+log = "0.4.20"
+pest = "2.7.4"
+pest_derive = "2.7.4"
+prost = "0.12.1"
+prost-build = "0.12.1"
+regex = "1.9.6"
+sstable = { path = "../sstable" }
+puffin-query = { path = "../puffin-query" }
+
+[build-dependencies]
+prost-build = "0.12.1"

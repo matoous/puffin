@@ -1,0 +1,18 @@
+[package]
+name = "sstable"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+categories.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+regex = "1.9.6"
+log = "0.4.20"
+
+[dev-dependencies]
+criterion = "0.3"
+simple_logger = "1.9"

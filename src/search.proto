@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package search;
-
-message File {
-  string filename = 1;
-  string content = 2;
-  string file_type = 3;
-}

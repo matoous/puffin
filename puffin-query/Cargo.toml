@@ -1,0 +1,15 @@
+[package]
+name = "puffin-query"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+categories.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lazy_static = "1.4.0"
+pest = "2.7.4"
+pest_derive = "2.7.4"
