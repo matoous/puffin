@@ -472,6 +472,7 @@ name = "rus"
 version = "0.0.1"
 dependencies = [
  "ignore",
+ "lazy_static",
  "pest",
  "pest_derive",
  "prost",

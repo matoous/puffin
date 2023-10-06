@@ -11,6 +11,7 @@ keywords = ["code-search", "search"]
 
 [dependencies]
 ignore = "0.4.20"
+lazy_static = "1.4.0"
 pest = "2.7.4"
 pest_derive = "2.7.4"
 prost = "0.12.1"

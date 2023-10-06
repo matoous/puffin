@@ -1,4 +1,8 @@
-use pest::{iterators::Pair, Parser};
+use pest::{
+    iterators::{Pair, Pairs},
+    pratt_parser::PrattParser,
+    Parser,
+};
 use pest_derive::Parser;
 
 #[derive(Parser)]
@@ -7,51 +11,77 @@ struct QueryParser;
 
 impl QueryParser {}
 
-pub fn parse(s: &str) -> Option<QueryNode> {
-    let pairs = QueryParser::parse(Rule::query, s).unwrap().next().unwrap();
+lazy_static::lazy_static! {
+    static ref PRATT_PARSER: PrattParser<Rule> = {
+        use pest::pratt_parser::{Assoc::*, Op};
 
-    fn parse_value(pair: Pair<Rule>) -> QueryNode {
-        let mut queries: Vec<QueryNode> = Vec::new();
+        PrattParser::new()
+            .op(Op::infix(Rule::and, Left) | Op::infix(Rule::or, Left))
+            .op(Op::prefix(Rule::not))
+    };
+}
 
-        for inner_pair in pair.into_inner() {
-            match inner_pair.as_rule() {
-                Rule::not => queries.push(QueryNode::Not(Box::new(QueryNode::And(
-                    inner_pair.into_inner().map(parse_value).collect(),
-                )))),
-                Rule::query => queries.push(parse_value(inner_pair)),
-                Rule::query_term => queries.push(QueryNode::Term(
-                    inner_pair.into_inner().next().unwrap().as_str().into(),
-                )),
-                Rule::file => queries.push(QueryNode::File(inner_pair.as_str().into())),
-                Rule::lang => queries.push(QueryNode::Lang(inner_pair.as_str().into())),
-                Rule::query_text => todo!(),
-                Rule::term => queries.push(QueryNode::Term(inner_pair.as_str().into())),
-                Rule::regex => {
-                    queries.push(QueryNode::Regex(inner_pair.into_inner().as_str().into()))
-                }
-                Rule::exact => {
-                    queries.push(QueryNode::Term(inner_pair.into_inner().as_str().into()))
-                }
-                Rule::WHITESPACE | Rule::re_char | Rule::re_inner | Rule::char | Rule::inner => {
-                    unreachable!()
-                }
-            };
+pub fn parse(s: &str) -> QueryNode {
+    let mut pairs = QueryParser::parse(Rule::query, s).unwrap();
+    let query = pairs.next().unwrap().into_inner();
+
+    fn parse_value(primary: Pair<Rule>) -> QueryNode {
+        match primary.as_rule() {
+            Rule::query => parse_value(primary.into_inner().next().unwrap()),
+            Rule::atom => parse_value(primary.into_inner().next().unwrap()),
+            Rule::file => QueryNode::File(primary.as_str().into()),
+            Rule::lang => QueryNode::Lang(primary.as_str().into()),
+            Rule::query_text => todo!(),
+            Rule::term => QueryNode::Term(primary.as_str().into()),
+            Rule::regex => QueryNode::Regex(primary.into_inner().as_str().into()),
+            Rule::exact => QueryNode::Term(primary.into_inner().as_str().into()),
+            Rule::expr => parse_expr(primary.into_inner()),
+            _ => {
+                unreachable!("{:?} not reachable", primary);
+            }
         }
-
-        if queries.len() == 1 {
-            return queries.pop().unwrap();
-        }
-
-        QueryNode::And(queries)
     }
 
-    Some(parse_value(pairs))
+    fn parse_expr(primary: Pairs<Rule>) -> QueryNode {
+        PRATT_PARSER
+            .map_primary(parse_value)
+            .map_infix(|lhs, op, rhs| {
+                println!("Lhs:   {:?}", lhs);
+                println!("Op:    {:?}", op);
+                println!("Rhs:   {:?}", rhs);
+
+                match op.as_rule() {
+                    Rule::and => QueryNode::And {
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    },
+                    Rule::or => QueryNode::Or {
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    },
+                    rule => unreachable!("Expr::parse expected infix operation, found {:?}", rule),
+                }
+            })
+            .map_prefix(|op, rhs| match op.as_rule() {
+                Rule::not => QueryNode::Not(Box::new(rhs)),
+                _ => unreachable!(),
+            })
+            .parse(primary)
+    }
+
+    parse_expr(query)
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum QueryNode {
-    Or(Vec<QueryNode>),
-    And(Vec<QueryNode>),
+    Or {
+        lhs: Box<QueryNode>,
+        rhs: Box<QueryNode>,
+    },
+    And {
+        lhs: Box<QueryNode>,
+        rhs: Box<QueryNode>,
+    },
     Not(Box<QueryNode>),
     Lang(String),
     File(String),
@@ -64,8 +94,8 @@ pub struct Document {}
 impl QueryNode {
     pub fn is_match(&self, doc: &Document) -> bool {
         match &self {
-            QueryNode::Or(_) => todo!(),
-            QueryNode::And(_) => todo!(),
+            QueryNode::Or { lhs, rhs } => todo!(),
+            QueryNode::And { lhs, rhs } => todo!(),
             QueryNode::Not(_) => todo!(),
             QueryNode::Lang(_) => todo!(),
             QueryNode::File(_) => todo!(),
@@ -81,30 +111,32 @@ mod tests {
 
     #[test]
     fn parsing() {
-        assert_eq!(parse("Test"), Some(QueryNode::Term("Test".into())));
+        assert_eq!(parse("Test"), QueryNode::Term("Test".into()));
 
         assert_eq!(
-            parse("Test Test2"),
-            Some(QueryNode::And(vec![
-                QueryNode::Term("Test".into()),
-                QueryNode::Term("Test2".into())
-            ]))
+            parse("Test AND Test2"),
+            QueryNode::And {
+                lhs: Box::new(QueryNode::Term("Test".into())),
+                rhs: Box::new(QueryNode::Term("Test2".into()))
+            }
         );
 
-        assert_eq!(
-            parse("\"Test Me\""),
-            Some(QueryNode::Term("Test Me".into()))
-        );
+        assert_eq!(parse("\"Test Me\""), QueryNode::Term("Test Me".into()));
 
-        assert_eq!(parse("/re*/"), Some(QueryNode::Regex("re*".into())));
+        assert_eq!(parse("/re*/"), QueryNode::Regex("re*".into()));
 
         assert_eq!(
-            parse("Test \"Foo Bar\" /or.+/"),
-            Some(QueryNode::And(vec![
-                QueryNode::Term("Test".into()),
-                QueryNode::Term("Foo Bar".into()),
-                QueryNode::Regex("or.+".into()),
-            ]))
+            parse("(Foo AND Bar) OR (Baz AND Buz)"),
+            QueryNode::Or {
+                lhs: Box::new(QueryNode::And {
+                    lhs: Box::new(QueryNode::Term("Foo".into())),
+                    rhs: Box::new(QueryNode::Term("Bar".into()))
+                }),
+                rhs: Box::new(QueryNode::And {
+                    lhs: Box::new(QueryNode::Term("Baz".into())),
+                    rhs: Box::new(QueryNode::Term("Buz".into()))
+                }),
+            }
         );
     }
 }
