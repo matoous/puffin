@@ -2,11 +2,12 @@ use ignore::WalkBuilder;
 use ngram::split_ngrams;
 use puffin_query::QueryNode;
 use sstable::SSTable;
-use std::collections::{hash_map::DefaultHasher, HashSet};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::OpenOptions;
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufWriter};
+use std::iter::Peekable;
 use std::vec;
 use std::{fs, io::Read};
 
@@ -99,7 +100,11 @@ impl Index {
 
     pub fn search(&self, query: QueryNode) -> Vec<search::File> {
         let mut results: Vec<FileId> = Vec::new();
-        let mut iters = self.match_iter(query);
+        let keys = self.file_meta.keys().cloned().collect();
+        let mut iters = Box::new(And::new(vec![
+            Box::new(All::new(keys)),
+            self.match_iter(query),
+        ]));
         while let Some(fid) = iters.next() {
             results.push(fid);
         }
@@ -149,7 +154,7 @@ impl Index {
         }
     }
 
-    fn collect_trigrams(&mut self, file_id: &FileId, src: &str) {
+    pub fn collect_trigrams(&mut self, file_id: &FileId, src: &str) {
         log::info!("collecting trigrams");
         for line in src.lines() {
             for (trigram, _) in split_ngrams(line) {
@@ -174,7 +179,7 @@ impl Index {
             QueryNode::And { lhs, rhs } => {
                 Box::new(And::new(vec![self.match_iter(*lhs), self.match_iter(*rhs)]))
             }
-            QueryNode::Not(_) => todo!(),
+            QueryNode::Not(q) => Box::new(Not::new(self.match_iter(*q))),
             QueryNode::Lang(_) => todo!(),
             QueryNode::File(_) => todo!(),
             QueryNode::Term(t) => Box::new(ContentGrams::new(t, self)),
@@ -192,7 +197,46 @@ fn hash_filename(filename: &str) -> FileId {
 trait MatchIter {
     fn matches(&self, fid: &FileId) -> bool;
     fn next(&mut self) -> Option<FileId>;
-    fn peek(&self) -> Option<&FileId>;
+}
+
+struct All {
+    iter: Peekable<vec::IntoIter<FileId>>,
+}
+
+impl All {
+    pub fn new(iter: Vec<FileId>) -> Self {
+        Self {
+            iter: iter.into_iter().peekable(),
+        }
+    }
+}
+
+impl MatchIter for All {
+    fn matches(&self, _: &FileId) -> bool {
+        true
+    }
+
+    fn next(&mut self) -> Option<FileId> {
+        self.iter.next()
+    }
+}
+
+struct Not(Box<dyn MatchIter>);
+
+impl Not {
+    fn new(q: Box<dyn MatchIter>) -> Self {
+        Not(q)
+    }
+}
+
+impl MatchIter for Not {
+    fn matches(&self, fid: &FileId) -> bool {
+        !self.0.matches(fid)
+    }
+
+    fn next(&mut self) -> Option<FileId> {
+        None
+    }
 }
 
 struct Or {
@@ -222,10 +266,6 @@ impl MatchIter for Or {
             }
             return Some(current);
         }
-    }
-
-    fn peek(&self) -> Option<&FileId> {
-        self.iterators.iter().flat_map(|i| i.peek()).min()
     }
 }
 
@@ -271,10 +311,6 @@ impl MatchIter for And {
         self.current = self.advance();
         current
     }
-
-    fn peek(&self) -> Option<&FileId> {
-        self.current.as_ref()
-    }
 }
 
 struct ContentGrams(Vec<FileId>);
@@ -307,9 +343,5 @@ impl MatchIter for ContentGrams {
 
     fn next(&mut self) -> Option<FileId> {
         self.0.pop()
-    }
-
-    fn peek(&self) -> Option<&FileId> {
-        self.0.last()
     }
 }

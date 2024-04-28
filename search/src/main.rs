@@ -57,6 +57,13 @@ fn search_only() {
         println!("match in: {:?}", f.filename);
     }
     log::info!("searching done");
+
+    log::info!("searching");
+    let result = index.search(QueryNode::new("NOT merchant"));
+    for f in result {
+        println!("match in: {:?}", f.filename);
+    }
+    log::info!("searching done");
 }
 
 fn main() {

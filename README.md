@@ -8,6 +8,16 @@ Experimental implementation of code search based on n-grams.
 
 Based on [Regular Expression Matching with a Trigram Index](https://swtch.com/~rsc/regexp/regexp4.html) by Russ Cox, [The technology behind GitHub’s new code search](https://github.blog/2023-02-06-the-technology-behind-githubs-new-code-search/), and heavily inspired by the Golang implementation [sourcegraph/zoekt](https://github.com/sourcegraph/zoekt).
 
+## Remarks
+
+This project is **very** experimental. I use it as a learning grounds for Rust, data structures, and various algorithms.
+
+- The code search doesn't really need the SSTables as they are implemented now. We don't care that much about being able to write and read at the same time. All we need is to be able to serialize the B-Tree that holds the mapping of trigrams to the files the trigram can be found in and then efficiently access this file once created. In that sense, we could just as well have `SSTableBuilder` and `SSTableReader` as two completely separate implementations.
+
+- Another thing to explore would be to hold the whole index (or eventually one shard of it) in a single file like [zoekt](https://github.com/sourcegraph/zoekt) does. In the end, we want to load most of the data into memory for fast and efficient queries, leaving only the file contents and trigram -> files mapping on the disk (and ideally memmapped for fast access).
+
+- There's a lot of `clone()` calls all around the place. I am 100% certain most of it can be optimized but I feel like having _something_ that works is at the moment more important than having the most idiomatic Rust codebase, so here goes nothing.
+
 ## How it works
 
 ### Indexing
@@ -58,6 +68,10 @@ Based on [Regular Expression Matching with a Trigram Index](https://swtch.com/~r
 
 [^peg]: [Parsing expression grammar (PEG)](https://en.wikipedia.org/wiki/Parsing_expression_grammar)
 
+## Development
+
+At the moment all I do for testing is `cargo run` and to asses how poorly this is written I sometimes check the performance using `cargo flamegraph`.
+
 ## SSTables
 
 - https://blog.petitviolet.net/post/2020-09-15/sorted-string-table-in-rust
@@ -66,7 +80,6 @@ Based on [Regular Expression Matching with a Trigram Index](https://swtch.com/~r
 - https://github.com/scylladb/scylladb/wiki/SSTables-Index-File
 
 Easy to read Go implementation: https://github.com/thomasjungblut/go-sstables
-
 
 ## Resources
 

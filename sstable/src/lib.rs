@@ -22,10 +22,11 @@ where
     }
 
     pub fn get(&self, key: &str) -> Option<V> {
-        match self.memtable.get(key) {
-            Some(value) => Some(value.clone()),
-            None => self.disktable.find(key),
-        }
+        self.memtable.get(key).cloned()
+        // match self.memtable.get(key) {
+        //     Some(value) => Some(value.clone()),
+        //     None => self.disktable.find(key),
+        // }
     }
 
     pub fn insert(&mut self, key: &str, value: V) -> Result<(), io::Error> {
